@@ -194,56 +194,46 @@
     to   { opacity: 1; transform: translateY(0); }
   }
 
-  /* ── Happy panel ──────────────────────────── */
-  .happy-box {
-    background: linear-gradient(135deg, #eef6ff 0%, #e3f0ff 100%);
-    border: 1.5px solid #b8d9f5;
-    border-radius: 14px;
-    padding: 1.25rem;
-    margin-bottom: 1.25rem;
-    text-align: left;
-  }
-  .happy-box strong {
-    display: block;
-    font-family: var(--heading);
-    font-size: 1rem;
-    font-weight: 800;
-    color: var(--blue);
-    margin-bottom: 0.35rem;
-  }
-  .happy-box p {
-    font-size: 0.88rem;
-    color: var(--text-soft);
-    line-height: 1.6;
-  }
-
-  .btn-google {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.6rem;
-    background: linear-gradient(135deg, var(--gold) 0%, var(--gold-dark) 100%);
-    color: #1a1a1a;
-    text-decoration: none;
+  /* ── Primary action button (per rating) ─── */
+  .btn-primary {
+    width: 100%;
+    border: none;
+    border-radius: 12px;
+    padding: 1rem 1.25rem;
     font-family: var(--heading);
     font-weight: 800;
     font-size: 0.95rem;
     letter-spacing: 0.02em;
-    padding: 1rem 1.5rem;
-    border-radius: 12px;
-    transition: transform 0.2s, box-shadow 0.2s;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s, background 0.2s;
+    color: #1a1a1a;
+    background: linear-gradient(135deg, var(--gold) 0%, var(--gold-dark) 100%);
     box-shadow: 0 5px 18px rgba(225,150,47,0.38);
-    width: 100%;
-    border: none;
+  }
+  .btn-primary.low {
+    color: #fff;
+    background: linear-gradient(135deg, var(--blue) 0%, var(--blue-dark) 100%);
+    box-shadow: 0 5px 18px rgba(0,56,118,0.28);
+  }
+  .btn-primary:active { transform: scale(0.98); }
+
+  .btn-secondary {
+    margin-top: 1rem;
+    background: transparent;
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    padding: 0.7rem 1.1rem;
+    font-family: var(--heading);
+    font-weight: 700;
+    font-size: 0.85rem;
+    color: var(--blue);
     cursor: pointer;
   }
-  .btn-google:active { transform: scale(0.98); }
-  .btn-google svg { width: 20px; height: 20px; flex-shrink: 0; }
 
-  .google-nudge {
-    font-size: 0.78rem;
+  .action-hint {
+    font-size: 0.75rem;
     color: var(--muted);
-    margin-top: 0.6rem;
+    margin-top: 0.7rem;
     font-weight: 500;
   }
 
@@ -379,11 +369,10 @@
 
     <p class="star-msg" id="starMsg">&nbsp;</p>
 
-    <!-- 4–5 stars: redirecting to Google (no button — auto-navigate) -->
-    <div class="panel" id="panelHappy">
-      <div class="thanks-icon">⭐</div>
-      <div class="thanks-title">Taking you to Google…</div>
-      <p class="thanks-msg">We really appreciate it. Leaving us a review takes about 30 seconds.</p>
+    <!-- Primary action button (appears after a star is tapped) -->
+    <div class="panel" id="panelAction">
+      <button type="button" class="btn-primary" id="primaryBtn">Continue</button>
+      <p class="action-hint" id="actionHint">You can tap a different star to change your rating.</p>
     </div>
 
     <!-- 1–3 stars: private feedback -->
@@ -403,11 +392,12 @@
       </form>
     </div>
 
-    <!-- Thank-you -->
+    <!-- Thank-you (also shown after Google opens, in case they come back) -->
     <div class="panel" id="panelThanks">
       <div class="thanks-icon" id="thanksIcon">🙏</div>
       <div class="thanks-title" id="thanksTitle">Thank you</div>
       <p class="thanks-msg" id="thanksMsg">We appreciate you taking the time. Every piece of feedback helps us do better.</p>
+      <button type="button" class="btn-secondary" id="reopenBtn" style="display:none;">Open Google again</button>
     </div>
   </div>
 
@@ -417,20 +407,25 @@
 </div>
 
 <script>
-  let selected    = 0;
-  let minAllow    = 1;
-  let fullyLocked = false;
+  const GOOGLE_REVIEW_URL = 'https://g.page/r/CWuEqJDHaN8OEBE/review';
+
+  let selected  = 0;
+  let submitted = false;
 
   const messages = {
-    hover: ['', 'We want to make it right', 'We want to make it right', 'Thanks for your honesty', 'Great to hear!', 'That means everything — thank you!'],
-    select: ['', "We're sorry — let's fix that.", "We're sorry — let's fix that.", "Thanks for your honest feedback.", "We really appreciate it!", "You made our day — thank you!"]
+    hover:  ['', 'We want to make it right', 'We want to make it right', 'Thanks for your honesty', 'Great to hear!', 'That means everything — thank you!'],
+    select: ['', "We’re sorry — let’s fix that.", "We’re sorry — let’s fix that.", "Thanks for your honest feedback.", "We really appreciate it!", "You made our day — thank you!"]
   };
 
-  const stars  = Array.from(document.querySelectorAll('.star'));
-  const msgEl  = document.getElementById('starMsg');
+  const stars      = Array.from(document.querySelectorAll('.star'));
+  const msgEl      = document.getElementById('starMsg');
+  const actionPnl  = document.getElementById('panelAction');
+  const primaryBtn = document.getElementById('primaryBtn');
+  const actionHint = document.getElementById('actionHint');
+  const reopenBtn  = document.getElementById('reopenBtn');
 
   function setMsg(text, active) {
-    msgEl.textContent = text || ' ';
+    msgEl.textContent = text || ' ';
     msgEl.classList.toggle('show', !!active);
   }
 
@@ -438,77 +433,87 @@
     stars.forEach(s => {
       const v = +s.dataset.v;
       s.classList.remove('hover', 'locked-on', 'blocked');
-      if (fullyLocked) {
-        s.classList.toggle('locked-on', v <= selected);
-      } else if (v < minAllow) {
-        s.classList.add('blocked');
-      } else if (v <= selected) {
-        s.classList.add('locked-on');
-      }
+      if (v <= selected) s.classList.add('locked-on');
     });
   }
 
   function showPanel(id) {
-    ['panelHappy','panelSad','panelThanks'].forEach(pid =>
+    ['panelAction','panelSad','panelThanks'].forEach(pid =>
       document.getElementById(pid).classList.remove('active')
     );
     if (id) document.getElementById(id).classList.add('active');
   }
 
-  // Touch / pointer events for mobile
+  function updateActionButton() {
+    if (!selected) { showPanel(null); return; }
+    if (selected >= 4) {
+      primaryBtn.textContent = 'Leave a Review on Google';
+      primaryBtn.classList.remove('low');
+    } else {
+      primaryBtn.textContent = 'Continue';
+      primaryBtn.classList.add('low');
+    }
+    actionHint.textContent = 'Tap a different star to change your rating.';
+    showPanel('panelAction');
+  }
+
   function isTouchDevice() { return 'ontouchstart' in window; }
 
   stars.forEach(star => {
     if (!isTouchDevice()) {
       star.addEventListener('mouseenter', () => {
-        if (fullyLocked) return;
+        if (submitted) return;
         const v = +star.dataset.v;
-        if (v < minAllow) return;
-        stars.forEach(s => s.classList.toggle('hover', +s.dataset.v >= minAllow && +s.dataset.v <= v));
+        stars.forEach(s => s.classList.toggle('hover', +s.dataset.v <= v && +s.dataset.v > selected));
         setMsg(messages.hover[v], false);
       });
 
       star.addEventListener('mouseleave', () => {
-        if (fullyLocked) return;
+        if (submitted) return;
         stars.forEach(s => s.classList.remove('hover'));
-        if (!selected) setMsg('', false);
+        if (selected) setMsg(messages.select[selected], true);
+        else setMsg('', false);
       });
     }
 
     star.addEventListener('click', () => {
-      if (fullyLocked) return;
+      if (submitted) return;
       const v = +star.dataset.v;
-      if (v < minAllow) return;
-
       selected = v;
 
-      // bounce the clicked star and all lit stars
       stars.forEach(s => {
         if (+s.dataset.v <= v) {
           s.classList.remove('bounce');
-          void s.offsetWidth; // reflow
+          void s.offsetWidth;
           s.classList.add('bounce');
         }
       });
 
+      renderStars();
       setMsg(messages.select[v], true);
-
-      if (v <= 3) {
-        fullyLocked = true;
-        minAllow = 1;
-        renderStars();
-        setTimeout(() => showPanel('panelSad'), 350);
-
-      } else {
-        fullyLocked = true;
-        minAllow = v;
-        renderStars();
-        showPanel('panelHappy');
-        setTimeout(() => {
-          window.location.href = 'https://g.page/r/CWuEqJDHaN8OEBE/review';
-        }, 1200);
-      }
+      updateActionButton();
     });
+  });
+
+  primaryBtn.addEventListener('click', () => {
+    if (!selected) return;
+    submitted = true;
+
+    if (selected >= 4) {
+      window.open(GOOGLE_REVIEW_URL, '_blank', 'noopener,noreferrer');
+      document.getElementById('thanksIcon').textContent = '⭐';
+      document.getElementById('thanksTitle').textContent = 'Thanks — you’re the best!';
+      document.getElementById('thanksMsg').textContent = 'Your Google review opened in a new tab. If it didn’t, tap the button below.';
+      reopenBtn.style.display = 'inline-block';
+      showPanel('panelThanks');
+    } else {
+      showPanel('panelSad');
+      setTimeout(() => document.getElementById('fname')?.focus(), 200);
+    }
+  });
+
+  reopenBtn.addEventListener('click', () => {
+    window.open(GOOGLE_REVIEW_URL, '_blank', 'noopener,noreferrer');
   });
 
   document.getElementById('feedbackForm').addEventListener('submit', async function(e) {
@@ -534,10 +539,16 @@
 
     if (!sent) {
       const subject = encodeURIComponent(`Peak Energy Feedback – ${selected} star(s)`);
-      const body    = encodeURIComponent(`Name: ${name}\nContact: ${contact}\nRating: ${selected} star(s)\n\nFeedback:\n${message}`);
+      const body    = encodeURIComponent(`Name: ${name}
+Contact: ${contact}
+Rating: ${selected} star(s)
+
+Feedback:
+${message}`);
       window.location.href = `mailto:service@peakenergync.com?subject=${subject}&body=${body}`;
     }
 
+    submitted = true;
     document.getElementById('thanksIcon').textContent = '🙏';
     document.getElementById('thanksTitle').textContent = 'Thank you';
     document.getElementById('thanksMsg').textContent = 'We received your message and will follow up with you directly.';
