@@ -1,0 +1,4 @@
+# Old /google-review path → /review (preserves links from before the rename)
+/google-review /review/ 301
+/google-review/ /review/ 301
+/google-review/* /review/:splat 301
