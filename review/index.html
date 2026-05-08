@@ -491,6 +491,14 @@
 
       renderStars();
       setMsg(messages.select[v], true);
+
+      // 5 stars → straight to Google. No button, no delay.
+      if (v === 5) {
+        submitted = true;
+        window.location.href = GOOGLE_REVIEW_URL;
+        return;
+      }
+
       updateActionButton();
     });
   });
