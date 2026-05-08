@@ -1,7 +1,0 @@
-# review.peakenergync.com → apps.peakenergync.com/review
-https://review.peakenergync.com/* https://apps.peakenergync.com/review/:splat 301
-
-# /review (and subpaths) serves files from PE-google-review-text folder
-/review /PE-google-review-text/index.html 200
-/review/ /PE-google-review-text/index.html 200
-/review/* /PE-google-review-text/:splat 200
